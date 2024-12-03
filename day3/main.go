@@ -32,9 +32,15 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error reading file: %v", err)
 	}
-	content := string(data)
-	// input := "xmul(2,4)%&mul[3,7]!@^do_not_mul(5,5)+mul(32,64]then(mul(11,8)mul(8,5))"
-	muls := extractNumbers(content)
+	input := string(data)
+	//input := "xmul(2,4)&mul[3,7]!^don't()_mul(5,5)+mul(32,64](mul(11,8)undo()?mul(8,5))"
+
+	// dont forget to remove between don't() and end of the string where there might not be a do()
+	removePattern := `(?s)don't\(\).*?(?:do\(\)|$)`
+	re := regexp.MustCompile(removePattern)
+	replaced := re.ReplaceAllString(input, "")
+	fmt.Println(replaced)
+	muls := extractNumbers(replaced)
 
 	result := 0
 	for _, val := range muls {
