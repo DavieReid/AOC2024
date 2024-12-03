@@ -45,7 +45,7 @@ func CalculateSimilarity(left *DataList, right *DataList) int {
 }
 
 func main() {
-	fmt.Println("Advent of Code 2024 - day 2")
+	fmt.Println("Advent of Code 2024 - day 1 part 2")
 	left := &DataList{}
 	right := &DataList{}
 
