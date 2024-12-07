@@ -14,9 +14,10 @@ type OrderRule struct {
 }
 
 type Update struct {
-	Entries []int
-	Valid   bool
-	Middle  int
+	Entries  []int
+	Valid    bool
+	Modified bool
+	Middle   int
 }
 
 func findValues(rules []OrderRule, field string, predicate func(OrderRule) bool) []int {
@@ -58,8 +59,13 @@ func intersection(slice1, slice2 []int) []int {
 	return result
 }
 
-func main() {
+func swap(update *Update, index1, index2 int) {
+	// Swap the elements at the given indices
+	update.Modified = true
+	update.Entries[index1], update.Entries[index2] = update.Entries[index2], update.Entries[index1]
+}
 
+func main() {
 	orderingRules := []OrderRule{}
 	updates := []Update{}
 
@@ -125,25 +131,22 @@ func main() {
 			entry.Entries = append(entry.Entries, updateNum)
 
 		}
-		entry.Middle = entry.Entries[len(entry.Entries)/2]
 		updates = append(updates, entry)
 
 	}
 
-	fmt.Println("JDHJKDHJDK", updates)
-
-	validUpdates := []Update{}
-
+	invalidUpdates := []Update{}
 	for _, update := range updates {
 		isValid := true
-		for i, updateVal := range update.Entries {
-
+		for i := 0; i < len(update.Entries); i++ {
+			fmt.Println("i", i, update.Entries)
+			updateVal := update.Entries[i]
 			beforeElems := update.Entries[:i]
 			afterElems := update.Entries[i+1:]
 			isFirst := len(beforeElems) == 0
 			isLast := len(afterElems) == 0
 
-			// fmt.Printf("Checking %v... must be before %v and after %v\n", updateVal, beforeRulesForVal, afterRulesForVal)
+			// fmt.Printf("Checking %v... must be before %v and after %v\n", updateVal, beforeRules[updateVal], afterRules[updateVal])
 
 			// fmt.Println("Elements before:", beforeElems)
 			// fmt.Println("Elements after: ", afterElems)
@@ -156,37 +159,46 @@ func main() {
 			if isFirst && len(beforeCheck) > 0 {
 				fmt.Println("FIRST WE have a failure", updateVal)
 				isValid = false
-				break
-
+				swap(&update, i, i+1)
 			}
 
 			if isLast && len(isAfter) > 0 {
 				fmt.Println("LAST WE have a failure", updateVal)
+				swap(&update, i, i-1)
+				fmt.Println(update.Entries)
 				isValid = false
-				break
-
 			}
 
-			if len(beforeCheck) > 0 || len(isAfter) > 0 {
-				fmt.Println("WE have a failure", updateVal)
+			if len(beforeCheck) > 0 {
+				fmt.Println("Broken Before rule", updateVal, beforeCheck)
 				isValid = false
-				break
+				swap(&update, i, i-1)
 			}
 
-			// fmt.Printf("%v is in the correct spot\n", updateVal)
+			if len(isAfter) > 0 {
+				fmt.Println("Broken After rule", updateVal, isAfter)
+				isValid = false
+				swap(&update, i, i+1)
+			}
+
+			if !isValid && isLast {
+				i = 0 // reset the loop
+				isValid = true
+			}
 		}
 
 		if isValid {
-			validUpdates = append(validUpdates, update)
+			invalidUpdates = append(invalidUpdates, update)
 		}
 
 	}
 	total := 0
-	for _, val := range validUpdates {
-
-		total += val.Middle
+	for _, val := range invalidUpdates {
+		if val.Modified {
+			total += val.Entries[len(val.Entries)/2]
+		}
 	}
-	fmt.Println("Total Valid Updates: ", len(validUpdates))
+	fmt.Println("Total Invalid Updates: ", invalidUpdates)
 	fmt.Println("Sum of Middle Entries", total)
 
 }
