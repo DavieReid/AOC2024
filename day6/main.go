@@ -22,32 +22,40 @@ type Guard struct {
 	Movements       int
 }
 
+type Obstacle struct {
+	Position           Position
+	DamagedLeftCount   int
+	DamagedRightCount  int
+	DamagedTopCount    int
+	DamagedBottomCount int
+}
+
 var visited = make(map[Position]bool)
 
 func (g *Guard) track() {
 	g.Movements++
 	visited[g.CurrentPosition] = true
-	fmt.Println("Guard Movements so far", g.Movements)
+	// fmt.Println("Guard Movements so far", g.Movements)
 }
 
 func (g *Guard) moveUp() {
 	g.CurrentPosition.X = g.CurrentPosition.X - 1
-	fmt.Println("Moving Up", g.CurrentPosition)
+	//fmt.Println("Moving Up", g.CurrentPosition)
 }
 
 func (g *Guard) moveDown() {
 	g.CurrentPosition.X = g.CurrentPosition.X + 1
-	fmt.Println("Moving Down", g.CurrentPosition)
+	//fmt.Println("Moving Down", g.CurrentPosition)
 }
 
 func (g *Guard) moveLeft() {
 	g.CurrentPosition.Y = g.CurrentPosition.Y - 1
-	fmt.Println("Moving Left", g.CurrentPosition)
+	//fmt.Println("Moving Left", g.CurrentPosition)
 }
 
 func (g *Guard) moveRight() {
 	g.CurrentPosition.Y = g.CurrentPosition.Y + 1
-	fmt.Println("Moving Right", g.CurrentPosition)
+	//fmt.Println("Moving Right", g.CurrentPosition)
 }
 
 func (g *Guard) turn() {
@@ -61,37 +69,33 @@ func (g *Guard) turn() {
 	case "right":
 		g.Direction = "down"
 	}
-	fmt.Println("Guard Turned", g.Direction)
+	// fmt.Println("Guard Turned", g.Direction)
 }
 
-func (g *Guard) isBlocked(grid [][]rune) bool {
-	blocked := false
+func (g *Guard) isBlocked(grid [][]rune) (bool, bool) {
+	var next Position
 	switch g.Direction {
 	case "up":
-		if string(grid[g.CurrentPosition.X-1][g.CurrentPosition.Y]) == "#" {
-			fmt.Printf("Blocked at [%v][%v]\n", g.CurrentPosition.X-1, g.CurrentPosition.Y)
-			blocked = true
-		}
+		next = Position{X: g.CurrentPosition.X - 1, Y: g.CurrentPosition.Y}
 	case "down":
-		if string(grid[g.CurrentPosition.X+1][g.CurrentPosition.Y]) == "#" {
-			fmt.Printf("Blocked at [%v][%v]\n", g.CurrentPosition.X+1, g.CurrentPosition.Y)
-			blocked = true
-		}
+		next = Position{X: g.CurrentPosition.X + 1, Y: g.CurrentPosition.Y}
 	case "left":
-		if string(grid[g.CurrentPosition.X][g.CurrentPosition.Y-1]) == "#" {
-			fmt.Printf("Blocked at [%v][%v]\n", g.CurrentPosition.X, g.CurrentPosition.Y-1)
-			blocked = true
-		}
+		next = Position{X: g.CurrentPosition.X, Y: g.CurrentPosition.Y - 1}
 	case "right":
-		if string(grid[g.CurrentPosition.X][g.CurrentPosition.Y+1]) == "#" {
-			fmt.Printf("Blocked at [%v][%v]\n", g.CurrentPosition.X, g.CurrentPosition.Y+1)
-			blocked = true
-		}
+		next = Position{X: g.CurrentPosition.X, Y: g.CurrentPosition.Y + 1}
 	}
-	if blocked {
-		fmt.Printf("CURRENT POSITION: [%v][%v]\n", g.CurrentPosition.X, g.CurrentPosition.Y)
+	if string(grid[next.X][next.Y]) == "#" {
+		//fmt.Printf("Blockage on [%v][%v]\n", next.X, next.Y)
+		//fmt.Printf("CURRENT POSITION: [%v][%v]\n", g.CurrentPosition.X, g.CurrentPosition.Y)
+		return true, false
 	}
-	return blocked
+
+	if string(grid[next.X][next.Y]) == "O" {
+		//fmt.Printf("CURRENT POSITION: [%v][%v]\n", g.CurrentPosition.X, g.CurrentPosition.Y)
+		//fmt.Printf("!!!!!!!!OBSTACLE!!!!!!! at [%v][%v]\n", next.X, next.Y)
+		return false, true
+	}
+	return false, false
 }
 
 func (g *Guard) hasGone(rowCount, columnCount int) bool {
@@ -122,6 +126,54 @@ func (g *Guard) hasGone(rowCount, columnCount int) bool {
 	return gone
 }
 
+func run(guard Guard, grid [][]rune, rowCount int, columnCount int, obstacle Obstacle) bool {
+	//fmt.Println("Obstacle placed at:", obstacle.Position.X, obstacle.Position.Y)
+	//fmt.Println("Guard starts at", guard.CurrentPosition.X, guard.CurrentPosition.Y)
+
+	for {
+		if guard.hasGone(rowCount, columnCount) {
+			return false
+		}
+		guard.track()
+		blocked, blockedByObstacle := guard.isBlocked(grid)
+
+		if blockedByObstacle {
+			switch guard.Direction {
+			case "up":
+				obstacle.DamagedBottomCount++
+			case "down":
+				obstacle.DamagedTopCount++
+			case "left":
+				obstacle.DamagedRightCount++
+			case "right":
+				obstacle.DamagedLeftCount++
+			}
+
+			if obstacle.DamagedLeftCount > 1 || obstacle.DamagedTopCount > 1 || obstacle.DamagedRightCount > 1 || obstacle.DamagedBottomCount > 1 {
+				return true
+			}
+			guard.turn()
+			continue
+		}
+
+		if blocked {
+			guard.turn()
+			continue
+		}
+
+		switch guard.Direction {
+		case "up":
+			guard.moveUp()
+		case "right":
+			guard.moveRight()
+		case "left":
+			guard.moveLeft()
+		case "down":
+			guard.moveDown()
+		}
+	}
+}
+
 func main() {
 	file, err := os.Open("input.txt")
 	if err != nil {
@@ -130,7 +182,6 @@ func main() {
 	}
 	defer file.Close()
 	scanner := bufio.NewScanner(file)
-
 	var lines []string
 
 	for scanner.Scan() {
@@ -147,8 +198,9 @@ func main() {
 	rowCount := len(grid)
 	columnCount := len(grid[0])
 	fmt.Printf("Grid size is %v rows by %v columns\n", rowCount, columnCount)
-	guard := &Guard{Movements: 0}
 
+	loopsDetected := 0
+	guard := Guard{Movements: 0, Gone: false}
 	for rowIndex, row := range grid {
 		for columnIndex := range row {
 			letter := string(grid[rowIndex][columnIndex])
@@ -160,29 +212,29 @@ func main() {
 		}
 	}
 
-	for !guard.Gone {
-		if guard.hasGone(rowCount, columnCount) {
-			break
-		}
+	for rowIndex, row := range grid {
+		for columnIndex := range row {
+			letter := string(grid[rowIndex][columnIndex])
+			var obstacle Obstacle
+			if letter != "#" && letter != "^" {
+				grid[rowIndex][columnIndex] = 'O'
+				obstacle = Obstacle{Position: Position{X: rowIndex, Y: columnIndex}, DamagedBottomCount: 0, DamagedLeftCount: 0, DamagedRightCount: 0, DamagedTopCount: 0}
+			}
 
-		if guard.isBlocked(grid) {
-			guard.turn()
-			continue
-		}
+			loopDetected := run(guard, grid, rowCount, columnCount, obstacle)
+			fmt.Println(loopsDetected)
+			if loopDetected {
+				loopsDetected++
+				fmt.Println("Loop")
+			}
 
-		switch guard.Direction {
-		case "up":
-			guard.moveUp()
-		case "right":
-			guard.moveRight()
-		case "left":
-			guard.moveLeft()
-		case "down":
-			guard.moveDown()
+			//reset
+			if grid[rowIndex][columnIndex] == 'O' {
+				grid[rowIndex][columnIndex] = '.'
+			}
 		}
-		guard.track()
 	}
 
-	fmt.Printf("%v distinct positions\n", len(visited))
+	fmt.Println("LOOPS: ", loopsDetected)
 
 }
